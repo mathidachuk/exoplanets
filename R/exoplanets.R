@@ -1,33 +1,45 @@
-parse_url <- function(table, columns, limit, format) {
+sqlize_filter <- function(...) {
+  if (is.null(c(...))) return("")
+  filters <- lapply(list(...), function(x) str2lang(x))
+  filters <- sapply(filters, function(x) dbplyr::translate_sql_(list(x), con = dbplyr::simulate_dbi()))
+  paste(paste("where",  gsub("`", "", filters)), collapse = " ")
+}
+
+parse_url <- function(table, columns, filters, limit, format) {
   if (!format %in% FORMATS) {
     stop("Expected formats are:", paste0("\n* ", FORMATS), call. = FALSE)
   }
 
   columns <- paste0(columns, collapse = ",")
   q_lim <- ifelse(limit == Inf, "", paste0("+top+", limit))
-  query <- paste0("select+", columns, "+from+", table, q_lim, "&format=", format)
+  q_filters <- gsub(" ", "+", sqlize_filter(filters))
+  query <- paste0(
+    "select+", columns, "+from+", table, "+",
+    q_filters, "+", q_lim, "&format=", format)
   url <- paste0(BASE, query)
   type <- switch (format,
     "csv" = "text/csv",
     "tsv" = "text/tab-separated-values",
     "json" = "application/json"
   )
+
   list(
     url = url,
     query = query,
     table = table,
     columns = columns,
+    filters = filters,
     limit = limit,
     format = format,
     type = type
   )
 }
 
-fetch_data <- function(table, columns, limit, format, progress) {
-  url <- parse_url(table, columns, limit, format)
-  cli::cat_bullet(BASE, cli::style_bold(url$query))
+fetch_data <- function(table, columns, filters, limit, format, progress, quiet) {
+  url <- parse_url(table, columns, filters, limit, format)
+  if (!quiet) cli::cat_bullet(BASE, cli::style_bold(url$query))
 
-  if (progress) {
+  if (progress & !quiet) {
     r <- httr::RETRY("GET", url$url, httr::progress())
   } else {
     r <- httr::RETRY("GET", url$url)
@@ -37,7 +49,8 @@ fetch_data <- function(table, columns, limit, format, progress) {
   httr::content(
     x = r,
     type = url$type,
-    encoding = "UTF-8"
+    encoding = "UTF-8",
+    col_types = readr::cols()
   )
 }
 
@@ -84,7 +97,16 @@ fetch_data <- function(table, columns, limit, format, progress) {
 #' }
 #'
 #' @export
-exoplanets <- function(table, columns = NULL, limit = Inf, format = "csv", progress = TRUE) {
+exoplanets <- function(
+  table,
+  columns = NULL,
+  filters = NULL,
+  limit = Inf,
+  format = "csv",
+  progress = TRUE,
+  quiet = FALSE
+) {
   if (is.null(columns)) columns <- "*"
-  fetch_data(table, columns, limit, format, progress)
+
+  fetch_data(table, columns, filters, limit, format, progress, quiet)
 }
