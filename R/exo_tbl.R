@@ -15,7 +15,7 @@ exo_tbl <- function(tbl_name, head = 6) {
 
 exo_select <- function(exo_tbl, ...) {
   exo_tbl %>%
-    select(...) %>%
+    dplyr::select(...) %>%
     structure(
       exo_cols = ellipsis_to_vector(...)
     )
@@ -39,14 +39,19 @@ exo_filter <- function(exo_tbl, ...) {
     )
 }
 
-collect <- function(exo_tbl) {
+exo_collect <- function(exo_tbl) {
   attr <- attributes(exo_tbl)
-  print(attr$exo_tbl_name)
   exoplanets(
     table = attr$exo_tbl_name,
     columns = attr$exo_cols,
     filters = attr$exo_filters,
     limit = Inf,
-    quiet = FALSE
+    quiet = TRUE
   )
 }
+
+
+# exo_tbl("ps") %>%
+#   exo_filter(pl_letter %in% c('a', 'f')) %>%
+#   exo_select(pl_name, pl_letter, disc_year) %>%
+#   exo_collect()
